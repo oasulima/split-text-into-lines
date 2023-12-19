@@ -1,11 +1,18 @@
+use anyhow::{bail, Result};
+use thiserror::Error;
+
 const SPACE: &str = " ";
 const SPACE_SIZE: usize = SPACE.len();
 const LINE_BREAK: &str = "\n";
 
-pub fn transform(input: &str, line_width: usize) -> String {
+#[derive(Clone, Debug, Eq, Error, PartialEq)]
+#[error("'{0}' lenght is more than {1}")]
+struct WordTooLongError(String, usize);
+
+pub fn transform(input: &str, line_width: usize) -> Result<String> {
     let mut input = input;
     if input.is_empty() {
-        return String::new();
+        return Ok(String::new());
     }
 
     let mut result = String::from("");
@@ -30,6 +37,10 @@ pub fn transform(input: &str, line_width: usize) -> String {
             continue;
         }
 
+        if word.len() > line_width {
+            bail!(WordTooLongError(word.to_string(), line_width));
+        }
+
         handle_word(
             &mut current_line_words,
             &mut current_line_min_length,
@@ -48,7 +59,7 @@ pub fn transform(input: &str, line_width: usize) -> String {
         );
     }
 
-    result
+    Ok(result)
 }
 
 fn handle_word<'a>(
@@ -156,10 +167,13 @@ fn add_separator(separator_len: usize, result: &mut String) {
 
 #[cfg(test)]
 mod tests {
+    use crate::WordTooLongError;
+
     use super::transform;
 
     #[test]
     fn simple() {
+        // Arrange
         let test_cases = [
             ("", 5, ""),
             ("test", 5, "test "),
@@ -170,7 +184,26 @@ mod tests {
 
         for &(input, line_width, expected) in &test_cases {
             println!("input: '{}'", input);
-            assert_eq!(transform(input, line_width), expected);
+            // Act
+            let result = transform(input, line_width);
+
+            //Assert
+            assert!(result.is_ok());
+            let result = result.unwrap();
+            assert_eq!(result, expected);
         }
+    }
+
+    #[test]
+    fn word_is_too_long() {
+        // Arrange
+        let input = "Loremipsumdolor";
+        let line_width = 5;
+
+        // Act
+        let result = transform(input, line_width);
+
+        //Assert
+        assert!(result.is_err_and(|x| x.is::<WordTooLongError>()));
     }
 }
